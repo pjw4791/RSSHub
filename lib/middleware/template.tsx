@@ -17,14 +17,17 @@ const middleware: MiddlewareHandler = async (ctx, next) => {
     const data: Data = ctx.get('data');
     const outputType = ctx.req.query('format') || 'rss';
 
-    // only enable when debugInfo=true
-    if (config.debugInfo) {
+    // Match the explicit debug setting, including token-protected diagnostics.
+    if (config.debugInfo === 'true' || (config.debugInfo && config.debugInfo !== 'false' && config.debugInfo === ctx.req.query('debug'))) {
         if (outputType === 'debug.json') {
+            ctx.header('Cache-Control', 'private, no-store');
             return ctx.json(ctx.get('json') || { message: 'plugin does not set debug json' });
         }
 
         if (/(\d+)\.debug\.html$/.test(outputType)) {
             const index = Number.parseInt(outputType.match(/(\d+)\.debug\.html$/)?.[1] || '0');
+            ctx.header('Cache-Control', 'private, no-store');
+            ctx.header('Content-Security-Policy', "sandbox; default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
             return ctx.html(data?.item?.[index]?.description || `data.item[${index}].description not found`);
         }
     }

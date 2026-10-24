@@ -88,18 +88,6 @@ const Index: FC<{ debugQuery: string | undefined }> = ({ debugQuery }) => {
                     )),
             },
             {
-                name: 'Hot Paths',
-                value: Object.keys(debug.paths)
-                    .sort((a, b) => debug.paths[b] - debug.paths[a])
-                    .slice(0, 30)
-                    .map((path) => (
-                        <>
-                            {debug.paths[path]} {path}
-                            <br />
-                        </>
-                    )),
-            },
-            {
                 name: 'Hot Error Routes',
                 value: Object.keys(debug.errorRoutes)
                     .sort((a, b) => debug.errorRoutes[b] - debug.errorRoutes[a])
@@ -107,18 +95,6 @@ const Index: FC<{ debugQuery: string | undefined }> = ({ debugQuery }) => {
                     .map((route) => (
                         <>
                             {debug.errorRoutes[route]} {route}
-                            <br />
-                        </>
-                    )),
-            },
-            {
-                name: 'Hot Error Paths',
-                value: Object.keys(debug.errorPaths)
-                    .sort((a, b) => debug.errorPaths[b] - debug.errorPaths[a])
-                    .slice(0, 30)
-                    .map((path) => (
-                        <>
-                            {debug.errorPaths[path]} {path}
                             <br />
                         </>
                     )),

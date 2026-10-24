@@ -4,11 +4,6 @@ import { getDebugInfo, setDebugInfo } from '@/utils/debug-info';
 const middleware: MiddlewareHandler = async (ctx, next) => {
     {
         const debug = getDebugInfo();
-        if (!debug.paths[ctx.req.path]) {
-            debug.paths[ctx.req.path] = 0;
-        }
-        debug.paths[ctx.req.path]++;
-
         debug.request++;
         setDebugInfo(debug);
     }

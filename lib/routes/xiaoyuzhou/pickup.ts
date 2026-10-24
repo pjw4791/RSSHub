@@ -2,8 +2,8 @@ import { Route } from '@/types';
 import cache from '@/utils/cache';
 import got from '@/utils/got';
 import { config } from '@/config';
-
-const XIAOYUZHOU_ITEMS = 'xiaoyuzhou_items';
+import ConfigNotFoundError from '@/errors/types/config-not-found';
+import md5 from '@/utils/md5';
 
 const isToday = (date) => {
     date = new Date(date);
@@ -12,11 +12,9 @@ const isToday = (date) => {
 };
 
 const ProcessFeed = async () => {
-    const device_id = config.xiaoyuzhou.device_id || 'f5d56d9a-8530-49a4-a6d2-cfb4b7a31240';
-    const refresh_token =
-        (await cache.get('XIAOYUZHOU_TOKEN')) ||
-        config.xiaoyuzhou.refresh_token ||
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiVzhieXB2dTJtT24xZWNqcEppN2p6R2xhMDBhMHYxellLaHFcL0ZXVWVkdDcxNlh3bnJnOFE0cFpGbVJmVFJQQ29ESWsxMmVuY3RcLzNqQWNjeFU3aTZNbkM4MUtWcUlmWWJJbVBKdXJDTXVYc1dHa2x0SE5TK3llNnJvTldLSWN1M1ZFTGY5WFE0cGhnK2crQld6bFloM2g0VUtONlNKWWlUSGtkaHowd0RJYXIrdTlzOE5PaEJPYXdJXC80NEFZcW41RjJqUXNnU3o1TExDSGtuTENuUFppRXllaTNwcVFwRkgweWFWbk03bmQ2RFhrUmVmUExVMTVpMXcwRnpkXC9wWDEiLCJ2IjozLCJpdiI6IkJiVGFjXC9KTG9BU1NYY0tPMkk3M0JBPT0iLCJpYXQiOjE1OTQ1NzIyOTEuODE2fQ.aQm7A6A1R3P94s88vWBWTbIeek9nJ-q9ztfCB7o1uK0';
+    const device_id = config.xiaoyuzhou.device_id;
+    const tokenCacheKey = `XIAOYUZHOU_TOKEN_${md5(config.xiaoyuzhou.refresh_token!)}`;
+    const refresh_token = (await cache.get(tokenCacheKey)) || config.xiaoyuzhou.refresh_token;
 
     const headers = {
         applicationid: 'app.podcast.cosmos',
@@ -33,7 +31,7 @@ const ProcessFeed = async () => {
             'x-jike-refresh-token': refresh_token,
         },
     });
-    cache.set('XIAOYUZHOU_TOKEN', token_updated.data['x-jike-refresh-token']);
+    cache.set(tokenCacheKey, token_updated.data['x-jike-refresh-token']);
 
     const response = await got({
         method: 'post',
@@ -94,11 +92,15 @@ export const route: Route = {
 };
 
 async function handler() {
-    let resultItems = await cache.tryGet(XIAOYUZHOU_ITEMS, () => ProcessFeed());
+    if (!config.xiaoyuzhou.device_id || !config.xiaoyuzhou.refresh_token) {
+        throw new ConfigNotFoundError('XIAOYUZHOU_ID and XIAOYUZHOU_TOKEN are required');
+    }
+    const itemsCacheKey = `xiaoyuzhou_items_${md5(config.xiaoyuzhou.refresh_token)}`;
+    let resultItems = await cache.tryGet(itemsCacheKey, () => ProcessFeed());
     if (!isToday(resultItems[0].pubDate)) {
         // force refresh cache
         resultItems = await ProcessFeed();
-        cache.set(XIAOYUZHOU_ITEMS, resultItems);
+        cache.set(itemsCacheKey, resultItems);
     }
     return {
         title: '小宇宙 - 发现',

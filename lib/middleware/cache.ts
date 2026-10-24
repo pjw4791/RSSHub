@@ -6,7 +6,8 @@ import RequestInProgressError from '@/errors/types/request-in-progress';
 import cacheModule from '@/utils/cache/index';
 import { Data } from '@/types';
 
-const bypassList = new Set(['/', '/robots.txt', '/logo.png', '/favicon.ico']);
+// Xiaoyuzhou uses credential-scoped inner caches and must always check its configuration.
+const bypassList = new Set(['/', '/robots.txt', '/logo.png', '/favicon.ico', '/xiaoyuzhou']);
 // only give cache string, as the `!` condition tricky
 // XXH64 is used to shrink key size
 // plz, write these tips in comments!

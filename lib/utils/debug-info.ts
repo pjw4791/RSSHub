@@ -3,9 +3,7 @@ type DebugInfo = {
     request: number;
     etag: number;
     error: number;
-    paths: Record<string, number>;
     routes: Record<string, number>;
-    errorPaths: Record<string, number>;
     errorRoutes: Record<string, number>;
 };
 
@@ -15,9 +13,7 @@ const debug: DebugInfo = {
     etag: 0,
     error: 0,
     routes: {},
-    paths: {},
     errorRoutes: {},
-    errorPaths: {},
 };
 
 export const getDebugInfo = () => debug;
