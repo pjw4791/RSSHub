@@ -67,6 +67,7 @@ async function getAccountStatuses(site, account_id, only_media) {
         method: 'get',
         url: statuses_url,
         headers: apiHeaders(site),
+        redirect: apiHeaders(site).Authorization ? 'error' : 'follow',
     });
     const data = statuses_response.data;
 
@@ -79,6 +80,7 @@ async function getAccountStatuses(site, account_id, only_media) {
             method: 'get',
             url: account_url,
             headers: apiHeaders(site),
+            redirect: apiHeaders(site).Authorization ? 'error' : 'follow',
         });
         account_data = account_response.data;
     }
@@ -108,6 +110,7 @@ async function getAccountIdByAcct(acct) {
             method: 'get',
             url: search_url,
             headers: apiHeaders(site),
+            redirect: apiHeaders(site).Authorization ? 'error' : 'follow',
             searchParams: {
                 q: acct,
                 type: 'accounts',

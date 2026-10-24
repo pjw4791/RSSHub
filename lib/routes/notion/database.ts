@@ -62,6 +62,11 @@ async function handler(ctx) {
 
     const databaseId = ctx.req.param('databaseId');
     const notion_api_key = config.notion.key;
+    const databaseQuery = parseCustomQuery(ctx.req.query('query')) ?? {};
+    const allowedQueryKeys = new Set(['filter', 'sorts', 'start_cursor', 'page_size', 'filter_properties', 'archived', 'in_trash']);
+    if (typeof databaseQuery !== 'object' || Array.isArray(databaseQuery) || Object.keys(databaseQuery).some((key) => !allowedQueryKeys.has(key))) {
+        throw new InvalidParameterError('Only database query options are allowed; database identity must come from the route');
+    }
 
     const notion = new Client({
         auth: notion_api_key,
@@ -76,10 +81,9 @@ async function handler(ctx) {
         const image = database.cover?.external.url ?? database.icon?.emoji;
 
         // List pages under the database
-        const databaseQuery = parseCustomQuery(ctx.req.query('query'));
         const { results } = await notion.databases.query({
-            database_id: databaseId,
             ...databaseQuery,
+            database_id: databaseId,
         });
         const customProperties = parseCustomQuery(ctx.req.query('properties')) ?? {};
         const properties = {

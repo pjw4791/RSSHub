@@ -20,8 +20,15 @@ const middleware: MiddlewareHandler = async (ctx, next) => {
     const requestPath = ctx.req.path;
     const limit = ctx.req.query('limit') ? `:${ctx.req.query('limit')}` : '';
     const { h64ToString } = await xxhash();
-    const key = 'rsshub:koa-redis-cache:' + h64ToString(requestPath + limit);
-    const controlKey = 'rsshub:path-requested:' + h64ToString(requestPath + limit);
+    // Separate Notion query variants and invalidate pre-boundary database cache entries.
+    let cacheIdentity = requestPath.startsWith('/notion/database/') ? JSON.stringify(['notion-v2', requestPath, limit, ctx.req.query('query'), ctx.req.query('properties')]) : requestPath + limit;
+    if (requestPath.startsWith('/misskey/timeline/home/')) {
+        cacheIdentity = JSON.stringify(['misskey-auth-v2', requestPath, limit, config.misskey.apiHost, config.misskey.accessToken]);
+    } else if (requestPath === '/javdb' || requestPath.startsWith('/javdb/')) {
+        cacheIdentity = JSON.stringify(['javdb-auth-v2', requestPath, limit, ctx.req.query('domain'), config.javdb.sessionDomain, config.javdb.session]);
+    }
+    const key = 'rsshub:koa-redis-cache:' + h64ToString(cacheIdentity);
+    const controlKey = 'rsshub:path-requested:' + h64ToString(cacheIdentity);
 
     const isRequesting = await cacheModule.globalCache.get(controlKey);
 

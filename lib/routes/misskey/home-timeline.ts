@@ -31,6 +31,7 @@ Examples:
     },
     features: {
         requireConfig: [
+            { name: 'MISSKEY_API_HOST', optional: false, description: 'Exact token issuing host (for example misskey.io), without a URL scheme or path.' },
             {
                 name: 'MISSKEY_ACCESS_TOKEN',
                 optional: false,
@@ -67,8 +68,9 @@ async function handler(ctx) {
     }
 
     const site = ctx.req.param('site');
-    if (!config.feature.allow_user_supply_unsafe_domain && !utils.allowSiteList.includes(site)) {
-        throw new ConfigNotFoundError(`This RSS is disabled unless 'ALLOW_USER_SUPPLY_UNSAFE_DOMAIN' is set to 'true'.`);
+    const apiHost = config.misskey.apiHost;
+    if (!apiHost || !/^[a-z0-9.-]+(?::[0-9]+)?$/i.test(apiHost) || site !== apiHost) {
+        throw new ConfigNotFoundError('MISSKEY_API_HOST must match the token issuing host');
     }
 
     // docs on: https://misskey.io/api-doc#tag/notes/operation/notes___timeline
@@ -77,6 +79,7 @@ async function handler(ctx) {
     const response = await got({
         method: 'post',
         url,
+        redirect: 'error',
         headers: {
             Authorization: `Bearer ${access_token}`,
         },

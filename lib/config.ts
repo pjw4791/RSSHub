@@ -202,6 +202,7 @@ export type Config = {
         password?: string;
     };
     javdb: {
+        sessionDomain: string;
         session?: string;
     };
     keylol: {
@@ -243,6 +244,7 @@ export type Config = {
         token?: string;
     };
     misskey: {
+        apiHost?: string;
         accessToken?: string;
     };
     mox: {
@@ -639,6 +641,7 @@ const calculateValue = () => {
             password: envs.IWARA_PASSWORD,
         },
         javdb: {
+            sessionDomain: envs.JAVDB_SESSION_DOMAIN || 'javdb.com',
             session: envs.JAVDB_SESSION,
         },
         keylol: {
@@ -680,6 +683,7 @@ const calculateValue = () => {
             token: envs.MINIFLUX_TOKEN || '',
         },
         misskey: {
+            apiHost: envs.MISSKEY_API_HOST,
             accessToken: envs.MISSKEY_ACCESS_TOKEN,
         },
         mox: {

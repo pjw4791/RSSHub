@@ -10,7 +10,13 @@ const allowDomain = new Set(['javdb.com', 'javdb36.com', 'javdb007.com', 'javdb5
 
 const ProcessItems = async (ctx, currentUrl, title) => {
     const domain = ctx.req.query('domain') ?? 'javdb.com';
+    if (!/^[a-z0-9.-]+$/i.test(domain)) {
+        throw new ConfigNotFoundError('JavDB domain must be a hostname without credentials, port or path');
+    }
     const url = new URL(currentUrl, `https://${domain}`);
+    if (url.origin !== new URL(`https://${domain}`).origin || url.username || url.password) {
+        throw new ConfigNotFoundError('JavDB path must remain on the selected HTTPS origin');
+    }
     if (!config.feature.allow_user_supply_unsafe_domain && !allowDomain.has(url.hostname)) {
         throw new ConfigNotFoundError(`This RSS is disabled unless 'ALLOW_USER_SUPPLY_UNSAFE_DOMAIN' is set to 'true'.`);
     }
@@ -19,7 +25,7 @@ const ProcessItems = async (ctx, currentUrl, title) => {
 
     const cookieJar = new CookieJar();
 
-    if (config.javdb.session) {
+    if (config.javdb.session && domain === config.javdb.sessionDomain) {
         const cookie = Cookie.fromJSON({
             key: '_jdb_session',
             value: config.javdb.session,
@@ -33,6 +39,7 @@ const ProcessItems = async (ctx, currentUrl, title) => {
         method: 'get',
         url: url.href,
         cookieJar,
+        redirect: 'error',
         headers: {
             'User-Agent': config.trueUA,
         },
@@ -61,6 +68,7 @@ const ProcessItems = async (ctx, currentUrl, title) => {
                     method: 'get',
                     url: item.link,
                     cookieJar,
+                    redirect: 'error',
                     headers: {
                         'User-Agent': config.trueUA,
                     },
