@@ -7,6 +7,7 @@ import timezone from '@/utils/timezone';
 import { parseDate } from '@/utils/parse-date';
 import { config } from '@/config';
 import Parser from 'rss-parser';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
 
 const parser = new Parser({
     customFields: {
@@ -65,8 +66,8 @@ async function handler(ctx) {
     let language = '';
     let path = getSubPath(ctx);
 
-    if (/^\/cn\/(cn|zh)/.test(path)) {
-        language = path.match(/^\/cn\/(cn|zh)/)[1];
+    if (/^\/cn\/(cn|zh)(?=\/|$)/.test(path)) {
+        language = path.match(/^\/cn\/(cn|zh)(?=\/|$)/)[1];
         path = path.match(new RegExp(String.raw`\/cn\/` + language + '(.*)'))[1];
     } else {
         language = 'cn';
@@ -78,13 +79,19 @@ async function handler(ctx) {
     const isOfficialRSS = path === '/rss';
     const currentUrl = `${rootUrl}${path}${isOfficialRSS ? '.html' : ''}`;
 
+    const sourceUrl = new URL(currentUrl);
+    if (sourceUrl.origin !== rootUrl || sourceUrl.username || sourceUrl.password) {
+        throw new InvalidParameterError('Nikkei source must remain on its official HTTPS origin');
+    }
+
     let officialFeed;
 
     let items = [],
         $;
 
     if (isOfficialRSS) {
-        officialFeed = await parser.parseURL(currentUrl);
+        const response = await got({ method: 'get', url: sourceUrl.href, redirect: 'error' });
+        officialFeed = await parser.parseString(response.body);
         items = officialFeed.items.slice(0, limit).map((item) => ({
             title: item.title,
             link: new URL(item.link, rootUrl).href,
@@ -92,7 +99,8 @@ async function handler(ctx) {
     } else {
         const response = await got({
             method: 'get',
-            url: currentUrl,
+            url: sourceUrl.href,
+            redirect: 'error',
         });
 
         $ = load(response.data);
@@ -111,12 +119,20 @@ async function handler(ctx) {
             .slice(0, limit);
     }
 
+    for (const item of items) {
+        const articleUrl = new URL(item.link);
+        if (!['https://cn.nikkei.com', 'https://zh.cn.nikkei.com'].includes(articleUrl.origin) || articleUrl.username || articleUrl.password) {
+            throw new InvalidParameterError('Nikkei articles must remain on an official HTTPS origin');
+        }
+    }
+
     items = await Promise.all(
         items.map((item) =>
-            cache.tryGet(item.link, async () => {
+            cache.tryGet(`nikkei-origin-v2:${item.link}`, async () => {
                 const detailResponse = await got({
                     method: 'get',
                     url: `${item.link}?print=1`,
+                    redirect: 'error',
                 });
 
                 const content = load(detailResponse.data);

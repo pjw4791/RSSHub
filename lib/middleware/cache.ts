@@ -22,7 +22,9 @@ const middleware: MiddlewareHandler = async (ctx, next) => {
     const { h64ToString } = await xxhash();
     // Separate Notion query variants and invalidate pre-boundary database cache entries.
     let cacheIdentity = requestPath.startsWith('/notion/database/') ? JSON.stringify(['notion-v2', requestPath, limit, ctx.req.query('query'), ctx.req.query('properties')]) : requestPath + limit;
-    if (requestPath.startsWith('/minecraft/version')) {
+    if (requestPath === '/nikkei/cn' || requestPath.startsWith('/nikkei/cn/')) {
+        cacheIdentity = JSON.stringify(['nikkei-origin-v2', requestPath, limit]);
+    } else if (requestPath.startsWith('/minecraft/version')) {
         cacheIdentity = JSON.stringify(['minecraft-manifest-v2', requestPath, limit, ctx.req.query('mcmanifest')]);
     } else if (requestPath.startsWith('/misskey/timeline/home/')) {
         cacheIdentity = JSON.stringify(['misskey-auth-v2', requestPath, limit, config.misskey.apiHost, config.misskey.accessToken]);
