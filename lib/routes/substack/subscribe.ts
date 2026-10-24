@@ -1,5 +1,7 @@
 import { Route, ViewType } from '@/types';
 import parser from '@/utils/rss-parser';
+import got from '@/utils/got';
+import { isValidHost } from '@/utils/valid-host';
 import { parseDate } from '@/utils/parse-date';
 import InvalidParameterError from '@/errors/types/invalid-parameter';
 
@@ -25,11 +27,12 @@ export const route: Route = {
 async function handler(ctx) {
     const user = ctx.req.param('user');
 
-    if (!user) {
+    if (!isValidHost(user)) {
         throw new InvalidParameterError('Invalid user');
     }
 
-    const feed = await parser.parseURL(`https://${user}.substack.com/feed`);
+    const response = await got(`https://${user}.substack.com/feed`, { redirect: 'error' });
+    const feed = await parser.parseString(response.body);
 
     return {
         title: feed.title ?? 'Substack',

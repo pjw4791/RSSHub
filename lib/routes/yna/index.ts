@@ -5,6 +5,7 @@ import got from '@/utils/got';
 import { load } from 'cheerio';
 import { parseDate } from '@/utils/parse-date';
 import timezone from '@/utils/timezone';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
 
 export const route: Route = {
     path: '/:lang?/:channel?',
@@ -50,22 +51,26 @@ For example, the path for the RSS feed url https://www.yna.co.kr/rss/economy.xml
 async function handler(ctx) {
     const lang = ctx.req.param('lang') ?? 'ko';
     const channel = ctx.req.param('channel') ?? 'news';
-    let url;
-    switch (lang) {
-        case 'ko':
-            url = `https://www.yna.co.kr/rss/${channel}.xml`;
-            break;
-        default:
-            url = `https://${lang}.yna.co.kr/RSS/${channel}.xml`;
-            break;
+    const hosts = { ko: 'www', en: 'en', cn: 'cn', jp: 'jp', ar: 'ar', es: 'sp', fr: 'fr' };
+    if (!Object.hasOwn(hosts, lang)) {
+        throw new InvalidParameterError('Invalid YNA language');
     }
-
-    const feed = await parser.parseURL(url);
+    const url = `https://${hosts[lang]}.yna.co.kr/${lang === 'ko' ? 'rss' : 'RSS'}/${channel}.xml`;
+    const response = await got(url, { redirect: 'error' });
+    const feed = await parser.parseString(response.body);
+    for (const item of feed.items) {
+        const articleUrl = new URL(item.link);
+        if (!['http:', 'https:'].includes(articleUrl.protocol) || articleUrl.username || articleUrl.password || articleUrl.port || !Object.values(hosts).some((host) => articleUrl.hostname === `${host}.yna.co.kr`)) {
+            throw new InvalidParameterError('YNA article URL must remain on an official HTTPS host');
+        }
+        articleUrl.protocol = 'https:';
+        item.link = articleUrl.href;
+    }
     const items = await Promise.all(
         feed.items.map((item) =>
             cache.tryGet(item.link, async () => {
                 item.pubDate = lang === 'ko' ? parseDate(item.pubDate) : timezone(parseDate(item.pubDate), +9); // Timezone is only included in the pubDate of the Korean language RSS
-                const response = await got(item.link);
+                const response = await got(item.link, { redirect: 'error' });
                 const $ = load(response.data);
                 item.author =
                     item.creator ??

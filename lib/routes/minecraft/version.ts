@@ -1,5 +1,6 @@
 import { Route } from '@/types';
 import got from '@/utils/got';
+import InvalidParameterError from '@/errors/types/invalid-parameter';
 import { Context } from 'hono';
 
 export const route: Route = {
@@ -103,11 +104,16 @@ const linkFormatter: any = {
 
 async function handler(ctx?: Context) {
     const url = ctx?.req.query('mcmanifest') ?? 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
+    const manifestUrl = new URL(url);
+    if (manifestUrl.protocol !== 'https:' || manifestUrl.hostname !== 'piston-meta.mojang.com' || manifestUrl.port || manifestUrl.username || manifestUrl.password) {
+        throw new InvalidParameterError('Minecraft manifest must use the official HTTPS source');
+    }
 
     const response: any = await got({
         method: 'get',
         url,
         responseType: 'json',
+        redirect: 'error',
     });
 
     let data: VersionInManifest[] = response.data.versions;
