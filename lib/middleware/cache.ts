@@ -12,7 +12,7 @@ const bypassList = new Set(['/', '/robots.txt', '/logo.png', '/favicon.ico', '/x
 // XXH64 is used to shrink key size
 // plz, write these tips in comments!
 const middleware: MiddlewareHandler = async (ctx, next) => {
-    if (!cacheModule.status.available || bypassList.has(ctx.req.path)) {
+    if (!cacheModule.status.available || bypassList.has(ctx.req.path) || ctx.req.path === '/discuz' || ctx.req.path.startsWith('/discuz/')) {
         await next();
         return;
     }

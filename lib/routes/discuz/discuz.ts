@@ -7,6 +7,7 @@ import { parseDate } from '@/utils/parse-date';
 import { config } from '@/config';
 import ConfigNotFoundError from '@/errors/types/config-not-found';
 import InvalidParameterError from '@/errors/types/invalid-parameter';
+import md5 from '@/utils/md5';
 
 function fixUrl(itemLink, baseUrl) {
     // 处理相对链接
@@ -19,14 +20,40 @@ function fixUrl(itemLink, baseUrl) {
     return itemLink;
 }
 
+function validateUrl(link: string, origin?: string) {
+    const url = new URL(link);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || (origin && (url.protocol !== 'https:' || url.origin !== origin))) {
+        throw new InvalidParameterError('Discuz URL must match its configured credential origin');
+    }
+    return url.href;
+}
+
+async function fetchPage(link: string, header: { Cookie: string }, origin?: string) {
+    let url = validateUrl(link, origin);
+    for (let redirects = 0; redirects <= 5; redirects++) {
+        // Validate each redirect before sending the credential again.
+        // eslint-disable-next-line no-await-in-loop
+        const response = await ofetch.raw(url, {
+            method: 'get',
+            responseType: 'arrayBuffer',
+            headers: header,
+            redirect: origin ? 'manual' : 'follow',
+        });
+        if (!origin || ![301, 302, 303, 307, 308].includes(response.status)) {
+            return response;
+        }
+        const location = response.headers.get('location');
+        if (!location) {
+            throw new InvalidParameterError('Discuz redirect has no destination');
+        }
+        url = validateUrl(new URL(location, url).href, origin);
+    }
+    throw new InvalidParameterError('Too many Discuz redirects');
+}
+
 // discuz 7.x 与 discuz x系列 通用文章内容抓取
-async function loadContent(itemLink, charset, header) {
-    // 处理编码问题
-    const response = await ofetch.raw(itemLink, {
-        method: 'get',
-        responseType: 'arrayBuffer',
-        headers: header,
-    });
+async function loadContent(itemLink, charset, header, origin?: string) {
+    const response = await fetchPage(itemLink, header, origin);
 
     const responseData = iconv.decode(Buffer.from(response._data), charset ?? 'utf-8');
     if (!responseData) {
@@ -58,10 +85,14 @@ export const route: Route = {
     path: ['/:ver{[7x]}/:cid{[0-9]{2}}/:link{.+}', '/:ver{[7x]}/:link{.+}', '/:link{.+}'],
     name: 'Unknown',
     maintainers: [],
+    description: 'Requires ALLOW_USER_SUPPLY_UNSAFE_DOMAIN=true. Each DISCUZ_COOKIE_XX must have a matching DISCUZ_ORIGIN_XX HTTPS origin (for example https://forum.example). Authenticated requests and articles stay on that origin.',
     handler,
 };
 
 async function handler(ctx) {
+    if (!config.feature.allow_user_supply_unsafe_domain) {
+        throw new ConfigNotFoundError("This RSS is disabled unless 'ALLOW_USER_SUPPLY_UNSAFE_DOMAIN' is set to 'true'.");
+    }
     let link = ctx.req.param('link');
     const ver = ctx.req.param('ver') ? ctx.req.param('ver').toUpperCase() : undefined;
     const cid = ctx.req.param('cid');
@@ -72,15 +103,22 @@ async function handler(ctx) {
         throw new ConfigNotFoundError('缺少对应论坛的cookie.');
     }
 
-    const header = {
-        Cookie: cookie,
-    };
-
-    const response = await ofetch.raw(link, {
-        method: 'get',
-        responseType: 'arrayBuffer',
-        headers: header,
-    });
+    let origin: string | undefined;
+    if (cookie) {
+        const binding = config.discuz.origins[cid];
+        if (!binding) {
+            throw new ConfigNotFoundError('Missing DISCUZ_ORIGIN for the selected cookie');
+        }
+        const configured = new URL(binding);
+        if (configured.protocol !== 'https:' || configured.username || configured.password || configured.pathname !== '/' || configured.search || configured.hash) {
+            throw new InvalidParameterError('DISCUZ_ORIGIN must be an HTTPS origin without credentials or path');
+        }
+        origin = configured.origin;
+    }
+    link = validateUrl(link, origin);
+    const cacheScope = md5(JSON.stringify([origin ?? '', cookie]));
+    const header = { Cookie: cookie };
+    const response = await fetchPage(link, header, origin);
 
     const responseData = Buffer.from(response._data);
     // 若没有指定编码，则默认utf-8
@@ -111,10 +149,13 @@ async function handler(ctx) {
                 };
             });
 
+        for (const item of list) {
+            validateUrl(item.link, origin);
+        }
         items = await Promise.all(
             list.map((item) =>
-                cache.tryGet(item.link, async () => {
-                    const { description } = await loadContent(item.link, charset, header);
+                cache.tryGet(`discuz-origin-v2:${cacheScope}:${item.link}`, async () => {
+                    const { description } = await loadContent(item.link, charset, header, origin);
 
                     item.description = description;
                     return item;
@@ -138,10 +179,13 @@ async function handler(ctx) {
                 };
             });
 
+        for (const item of list) {
+            validateUrl(item.link, origin);
+        }
         items = await Promise.all(
             list.map((item) =>
-                cache.tryGet(item.link, async () => {
-                    const { description } = await loadContent(item.link, charset, header);
+                cache.tryGet(`discuz-origin-v2:${cacheScope}:${item.link}`, async () => {
+                    const { description } = await loadContent(item.link, charset, header, origin);
 
                     item.description = description;
                     return item;

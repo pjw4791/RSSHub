@@ -130,6 +130,7 @@ export type Config = {
         config: Record<string, string | undefined>;
     };
     discuz: {
+        origins: Record<string, string | undefined>;
         cookies: Record<string, string | undefined>;
     };
     disqus: {
@@ -419,6 +420,7 @@ const calculateValue = () => {
     const bilibili_cookies: Record<string, string | undefined> = {};
     const email_config: Record<string, string | undefined> = {};
     const discuz_cookies: Record<string, string | undefined> = {};
+    const discuz_origins: Record<string, string | undefined> = {};
     const medium_cookies: Record<string, string | undefined> = {};
     const discourse_config: Record<string, string | undefined> = {};
 
@@ -429,6 +431,8 @@ const calculateValue = () => {
         } else if (name.startsWith('EMAIL_CONFIG_')) {
             const id = name.slice(13);
             email_config[id] = envs[name];
+        } else if (name.startsWith('DISCUZ_ORIGIN_')) {
+            discuz_origins[name.slice('DISCUZ_ORIGIN_'.length)] = envs[name];
         } else if (name.startsWith('DISCUZ_COOKIE_')) {
             const cid = name.slice(14);
             discuz_cookies[cid] = envs[name];
@@ -569,6 +573,7 @@ const calculateValue = () => {
             config: discourse_config,
         },
         discuz: {
+            origins: discuz_origins,
             cookies: discuz_cookies,
         },
         disqus: {
