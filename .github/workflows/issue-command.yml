@@ -38,11 +38,13 @@ jobs:
 
   test-on-demand:
     name: Test route on demand
-    if: startsWith(github.event.comment.body, '/test')
+    if: >-
+      startsWith(github.event.comment.body, '/test') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      attestations: write
+      contents: read
       issues: write
       pull-requests: write
     steps:
@@ -60,12 +62,25 @@ jobs:
       - name: Checkout
         if: ${{ !github.event.issue.pull_request }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Verify PR source repository
+        if: github.event.issue.pull_request
+        env:
+          PR_HEAD_REPOSITORY: ${{ fromJSON(steps.pr-data.outputs.data).head.repo.full_name }}
+        run: |
+          if [ "$PR_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" ]; then
+            echo 'Route tests with write permissions require a branch in this repository.' >&2
+            exit 1
+          fi
 
       - name: Checkout PR
         if: github.event.issue.pull_request
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ fromJson(steps.pr-data.outputs.data).head.ref }}
+          ref: ${{ fromJSON(steps.pr-data.outputs.data).head.sha }}
+          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
